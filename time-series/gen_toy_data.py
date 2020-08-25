@@ -104,7 +104,7 @@ def gen_data(n_samples=10000, seq_len=200, max_time=1, poisson_rate=50,
 
 def main():
     gen_data(n_samples=10000, seq_len=200, max_time=1, poisson_rate=50,
-             obs_span_rate=.25, save_file='toy-data.pkl')
+             obs_span_rate=.25, save_file='toy-data.npz')
 
 
 if __name__ == '__main__':

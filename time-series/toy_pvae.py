@@ -10,7 +10,6 @@ import time
 from pathlib import Path
 import argparse
 from collections import defaultdict
-import pickle
 from spline_cconv import ContinuousConv1D
 from time_series import TimeSeries
 from tracker import Tracker
