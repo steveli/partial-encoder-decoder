@@ -39,7 +39,7 @@ For CelebA, you need to download the dataset from its
 by doing either of the following:
 * Download the file `img_align_celeba.zip` from [this link](https://drive.google.com/uc?export=download&id=0B7EVK8r0v71pZjFTYXZWM3FlRnM)
   and extract the zip file into the directory `image/celeba-data`, or
-* Run the script [download-celeba.sh](image/celeba-data/requirements.txt)
+* Run the script [download-celeba.sh](image/celeba-data/download-celeba.sh)
   under the directory `image/celeba-data`. Make sure you have
   [curl](https://curl.haxx.se) on your system.
 
