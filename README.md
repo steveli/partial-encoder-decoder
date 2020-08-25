@@ -134,7 +134,7 @@ one of the following three labeled time series data format:
     * `(train|test|val)_(time|data|mask)`
     * `(train|test|val)_label`
 
-The function `time_series.py` in [time_series.py](time-series/time_series.py)
+The function `split_data` in [time_series.py](time-series/time_series.py)
 demonstrates how the data file is read and split
 into training/test/validation set.
 You can follow this to create time series data of your own.
