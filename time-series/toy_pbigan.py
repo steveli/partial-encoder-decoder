@@ -17,12 +17,9 @@ from mmd import mmd
 from tracker import Tracker
 from vis import Visualizer
 from gen_toy_data import gen_data
-from utils import Rescaler, mkdir
+from utils import Rescaler, mkdir, make_scheduler
 from layers import Decoder, gan_loss
-from toy_layers import (
-    SeqGeneratorDiscrete,
-    conv_ln_lrelu,
-)
+from toy_layers import SeqGeneratorDiscrete, conv_ln_lrelu
 
 
 use_cuda = torch.cuda.is_available()
@@ -153,54 +150,67 @@ def main():
     parser = argparse.ArgumentParser()
 
     default_dataset = 'toy-data.npz'
-    parser.add_argument('--data', default=default_dataset)
-    parser.add_argument('--seed', type=int, default=None)
+    parser.add_argument('--data', default=default_dataset,
+                        help='data file')
+    parser.add_argument('--seed', type=int, default=None,
+                        help='random seed. Randomly set if not specified.')
 
     # training options
-    parser.add_argument('--nz', type=int, default=32, help='latent size')
-    parser.add_argument('--epoch', type=int, default=1000)
-    parser.add_argument('--batch-size', type=int, default=128)
+    parser.add_argument('--nz', type=int, default=32,
+                        help='dimension of latent variable')
+    parser.add_argument('--epoch', type=int, default=1000,
+                        help='number of training epochs')
+    parser.add_argument('--batch-size', type=int, default=128,
+                        help='batch size')
     parser.add_argument('--lr', type=float, default=8e-5,
-                        help='generator learning rate')
+                        help='encoder/decoder learning rate')
     parser.add_argument('--dis-lr', type=float, default=1e-4,
                         help='discriminator learning rate')
     parser.add_argument('--min-lr', type=float, default=5e-5,
-                        help='min learning rate for LR scheduler, '
-                             '-1 to disable annealing')
+                        help='min encoder/decoder learning rate for LR '
+                             'scheduler. -1 to disable annealing')
     parser.add_argument('--min-dis-lr', type=float, default=7e-5,
-                        help='min learning rate for discriminator '
-                             'LR scheduler, -1 to disable annealing')
-    parser.add_argument('--wd', type=float, default=0, help='weight decay')
+                        help='min discriminator learning rate for LR '
+                             'scheduler. -1 to disable annealing')
+    parser.add_argument('--wd', type=float, default=0,
+                        help='weight decay')
     parser.add_argument('--overlap', type=float, default=.5,
                         help='kernel overlap')
-    parser.add_argument('--no-norm-trans', action='store_true')
-
-    # log options: 0 to disable plot-interval or save-interval
-    parser.add_argument('--plot-interval', type=int, default=1)
-    parser.add_argument('--save-interval', type=int, default=0)
-    parser.add_argument('--prefix', default='pbigan')
+    parser.add_argument('--no-norm-trans', action='store_true',
+                        help='if set, use Gaussian posterior without '
+                             'transformation')
+    parser.add_argument('--plot-interval', type=int, default=1,
+                        help='plot interval. 0 to disable plotting.')
+    parser.add_argument('--save-interval', type=int, default=0,
+                        help='interval to save models. 0 to disable saving.')
+    parser.add_argument('--prefix', default='pbigan',
+                        help='prefix of output directory')
     parser.add_argument('--comp', type=int, default=7,
                         help='continuous convolution kernel size')
-    parser.add_argument('--ae', type=float, default=.1)
+    parser.add_argument('--ae', type=float, default=.3,
+                        help='autoencoding regularization strength')
     parser.add_argument('--aeloss', default='smooth_l1',
-                        help='autoencoding loss, options: mse, smooth_l1')
-
+                        help='autoencoding loss. (options: mse, smooth_l1)')
     parser.add_argument('--ema', dest='ema', type=int, default=-1,
-                        help='start iteration of EMA, -1 to disable EMA')
-    parser.add_argument('--ema-decay', type=float, default=.9999)
-    parser.add_argument('--mmd', type=float, default=1)
+                        help='start epoch of exponential moving average '
+                             '(EMA). -1 to disable EMA')
+    parser.add_argument('--ema-decay', type=float, default=.9999,
+                        help='EMA decay')
+    parser.add_argument('--mmd', type=float, default=1,
+                        help='MMD strength for latent variable')
 
     # squash is off when rescale is off
     parser.add_argument('--squash', dest='squash', action='store_const',
                         const=True, default=True,
-                        help='bound generated time series value using tanh')
+                        help='bound the generated time series value '
+                             'using tanh')
     parser.add_argument('--no-squash', dest='squash', action='store_const',
                         const=False)
 
     # rescale to [-1, 1]
     parser.add_argument('--rescale', dest='rescale', action='store_const',
                         const=True, default=True,
-                        help='rescale the value of time series to [-1, 1]')
+                        help='if set, rescale time to [-1, 1]')
     parser.add_argument('--no-rescale', dest='rescale', action='store_const',
                         const=False)
 
@@ -293,21 +303,9 @@ def main():
     critic_optimizer = optim.Adam(
         critic.parameters(), lr=args.dis_lr, weight_decay=args.wd)
 
-    scheduler = None
-    if args.min_lr > 0:
-        lr_steps = 10
-        step_size = epochs // lr_steps
-        gamma = (args.min_lr / args.lr)**(1 / lr_steps)
-        scheduler = optim.lr_scheduler.StepLR(
-            optimizer, step_size=step_size, gamma=gamma)
-
-    dis_scheduler = None
-    if args.min_dis_lr > 0:
-        lr_steps = 10
-        step_size = epochs // lr_steps
-        gamma = (args.min_dis_lr / args.dis_lr)**(1 / lr_steps)
-        dis_scheduler = optim.lr_scheduler.StepLR(
-            critic_optimizer, step_size=step_size, gamma=gamma)
+    scheduler = make_scheduler(optimizer, args.lr, args.min_lr, epochs)
+    dis_scheduler = make_scheduler(
+        critic_optimizer, args.dis_lr, args.min_dis_lr, epochs)
 
     path = '{}_{}'.format(
         args.prefix, datetime.now().strftime('%m%d.%H%M%S'))

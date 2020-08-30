@@ -59,8 +59,9 @@ def plot_samples(data_unif, time_unif, data=None, time=None, mask=None,
             ax.axes.yaxis.set_ticklabels([])
             fig.add_subplot(ax)
 
-    plt.savefig(img_path, bbox_inches='tight')
-    plt.close(fig)
+    if img_path:
+        plt.savefig(img_path, bbox_inches='tight')
+        plt.close(fig)
 
 
 class Visualizer:

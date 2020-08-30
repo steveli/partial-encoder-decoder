@@ -96,7 +96,7 @@ def split_data(data_file, rnd, max_time, cconv_ref, overlap, device,
         time_np = raw_data['time']
         data_np = raw_data['data']
         mask_np = raw_data['mask']
-        label_np = raw_data['y'].squeeze()
+        label_np = raw_data['label'].squeeze()
 
         (tv_time, test_time, tv_data, test_data,
          tv_mask, test_mask, tv_label, test_label) = train_test_split(

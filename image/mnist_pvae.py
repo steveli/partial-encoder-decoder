@@ -16,7 +16,7 @@ import argparse
 from masked_mnist import IndepMaskedMNIST, BlockMaskedMNIST
 from mnist_decoder import ConvDecoder
 from mnist_encoder import ConvEncoder
-from utils import mkdir
+from utils import mkdir, make_scheduler
 from visualize import Visualizer
 
 
@@ -100,14 +100,7 @@ def train_pvae(args):
     pvae = PVAE(encoder, decoder).to(device)
 
     optimizer = optim.Adam(pvae.parameters(), lr=args.lr)
-
-    scheduler = None
-    if args.min_lr is not None:
-        lr_steps = 10
-        step_size = args.epoch // lr_steps
-        gamma = (args.min_lr / args.lr)**(1 / lr_steps)
-        scheduler = optim.lr_scheduler.StepLR(
-            optimizer, step_size=step_size, gamma=gamma)
+    scheduler = make_scheduler(optimizer, args.lr, args.min_lr, args.epoch)
 
     rand_z = torch.empty(args.batch_size, args.latent, device=device)
 
@@ -195,31 +188,52 @@ def train_pvae(args):
 def main():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--seed', type=int, default=3)
+    parser.add_argument('--seed', type=int, default=3,
+                        help='random seed')
     # training options
-    parser.add_argument('--plot-interval', type=int, default=50)
-    parser.add_argument('--save-interval', type=int, default=50)
-    # mask options (data): block|indep
-    parser.add_argument('--mask', default='block')
+    parser.add_argument('--plot-interval', type=int, default=50,
+                        help='plot interval. 0 to disable plotting.')
+    parser.add_argument('--save-interval', type=int, default=50,
+                        help='interval to save models. 0 to disable saving.')
+    parser.add_argument('--mask', default='block',
+                        help='missing data mask. (options: block, indep)')
     # option for block: set to 0 for variable size
-    parser.add_argument('--block-len', type=int, default=12)
-    parser.add_argument('--block-len-max', type=int, default=None)
+    parser.add_argument('--block-len', type=int, default=12,
+                        help='size of observed block. '
+                             'Set to 0 to use variable size')
+    parser.add_argument('--block-len-max', type=int, default=None,
+                        help='max size of observed block. '
+                             'Use fixed-size observed block if unspecified.')
     # option for indep:
-    parser.add_argument('--obs-prob', type=float, default=.2)
-    parser.add_argument('--obs-prob-max', type=float, default=None)
+    parser.add_argument('--obs-prob', type=float, default=.2,
+                        help='observed probability for independent dropout')
+    parser.add_argument('--obs-prob-max', type=float, default=None,
+                        help='max observed probability for independent '
+                             'dropout. Use fixed probability if unspecified.')
 
-    parser.add_argument('--flow', type=int, default=2)
-    parser.add_argument('--lr', type=float, default=1e-3)
-    parser.add_argument('--min-lr', type=float, default=None)
+    parser.add_argument('--flow', type=int, default=2,
+                        help='number of IAF layers')
+    parser.add_argument('--lr', type=float, default=1e-3,
+                        help='learning rate')
+    parser.add_argument('--min-lr', type=float, default=-1,
+                        help='min learning rate for LR scheduler. '
+                             '-1 to disable annealing')
 
-    parser.add_argument('--epoch', type=int, default=4000)
-    parser.add_argument('--batch-size', type=int, default=128)
-    parser.add_argument('--k', type=int, default=5)
-    parser.add_argument('--prefix', default='pvae')
-    parser.add_argument('--latent', type=int, default=128)
-    parser.add_argument('--kl-off', type=int, default=200)
+    parser.add_argument('--epoch', type=int, default=4000,
+                        help='number of training epochs')
+    parser.add_argument('--batch-size', type=int, default=128,
+                        help='batch size')
+    parser.add_argument('--k', type=int, default=5,
+                        help='number of importance weights')
+    parser.add_argument('--prefix', default='pvae',
+                        help='prefix of output directory')
+    parser.add_argument('--latent', type=int, default=128,
+                        help='dimension of latent variable')
+    parser.add_argument('--kl-off', type=int, default=200,
+                        help='epoch to start tune up KL weight from zero')
     # set --kl-on to 0 to use constant kl_weight = 1
-    parser.add_argument('--kl-on', type=int, default=0)   # prev: 1000
+    parser.add_argument('--kl-on', type=int, default=0,
+                        help='start epoch to use KL weight 1')
 
     args = parser.parse_args()
 

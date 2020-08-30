@@ -14,7 +14,7 @@ import argparse
 from masked_mnist import IndepMaskedMNIST, BlockMaskedMNIST
 from mnist_decoder import ConvDecoder
 from mnist_encoder import ConvEncoder
-from utils import mkdir
+from utils import mkdir, make_scheduler
 from visualize import Visualizer
 
 
@@ -167,13 +167,7 @@ def train_pbigan(args):
 
     grad_penalty = GradientPenalty(critic, args.batch_size)
 
-    scheduler = None
-    if args.min_lr is not None:
-        lr_steps = 10
-        step_size = args.epoch // lr_steps
-        gamma = (args.min_lr / args.lr)**(1 / lr_steps)
-        scheduler = optim.lr_scheduler.StepLR(
-            optimizer, step_size=step_size, gamma=gamma)
+    scheduler = make_scheduler(optimizer, args.lr, args.min_lr, args.epoch)
 
     path = '{}_{}_{}'.format(
         args.prefix, datetime.now().strftime('%m%d.%H%M%S'), mask_str)
@@ -296,30 +290,51 @@ def train_pbigan(args):
 def main():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--seed', type=int, default=3)
+    parser.add_argument('--seed', type=int, default=3,
+                        help='random seed')
     # training options
-    parser.add_argument('--plot-interval', type=int, default=50)
-    parser.add_argument('--save-interval', type=int, default=0)
-    # mask options (data): block|indep
-    parser.add_argument('--mask', default='block')
+    parser.add_argument('--plot-interval', type=int, default=50,
+                        help='plot interval. 0 to disable plotting.')
+    parser.add_argument('--save-interval', type=int, default=0,
+                        help='interval to save models. 0 to disable saving.')
+    parser.add_argument('--mask', default='block',
+                        help='missing data mask. (options: block, indep)')
     # option for block: set to 0 for variable size
-    parser.add_argument('--block-len', type=int, default=12)
-    parser.add_argument('--block-len-max', type=int, default=None)
+    parser.add_argument('--block-len', type=int, default=12,
+                        help='size of observed block')
+    parser.add_argument('--block-len-max', type=int, default=None,
+                        help='max size of observed block. '
+                             'Use fixed-size observed block if unspecified.')
     # option for indep:
-    parser.add_argument('--obs-prob', type=float, default=.2)
-    parser.add_argument('--obs-prob-max', type=float, default=None)
+    parser.add_argument('--obs-prob', type=float, default=.2,
+                        help='observed probability for independent dropout')
+    parser.add_argument('--obs-prob-max', type=float, default=None,
+                        help='max observed probability for independent '
+                             'dropout. Use fixed probability if unspecified.')
 
-    parser.add_argument('--flow', type=int, default=2)
-    parser.add_argument('--lr', type=float, default=1e-3)
-    parser.add_argument('--min-lr', type=float, default=None)
+    parser.add_argument('--flow', type=int, default=2,
+                        help='number of IAF layers')
+    parser.add_argument('--lr', type=float, default=1e-3,
+                        help='learning rate')
+    parser.add_argument('--min-lr', type=float, default=-1,
+                        help='min learning rate for LR scheduler. '
+                             '-1 to disable annealing')
 
-    parser.add_argument('--arch', default='conv')   # fc | conv
-    parser.add_argument('--epoch', type=int, default=2000)
-    parser.add_argument('--batch-size', type=int, default=128)
-    parser.add_argument('--ae', type=float, default=.1)
-    parser.add_argument('--prefix', default='pbigan')
-    parser.add_argument('--latent', type=int, default=128)
-    parser.add_argument('--aeloss', default='bce')   # mse|bce|smooth_l1|l1
+    parser.add_argument('--arch', default='conv',
+                        help='network architecture. (options: fc, conv)')
+    parser.add_argument('--epoch', type=int, default=2000,
+                        help='number of training epochs')
+    parser.add_argument('--batch-size', type=int, default=128,
+                        help='batch size')
+    parser.add_argument('--ae', type=float, default=.1,
+                        help='autoencoding regularization strength')
+    parser.add_argument('--prefix', default='pbigan',
+                        help='prefix of output directory')
+    parser.add_argument('--latent', type=int, default=128,
+                        help='dimension of latent variable')
+    parser.add_argument('--aeloss', default='bce',
+                        help='autoencoding loss. '
+                             '(options: mse, bce, smooth_l1, l1)')
 
     args = parser.parse_args()
 

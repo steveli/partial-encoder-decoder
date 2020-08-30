@@ -1,4 +1,5 @@
 import torch
+import torch.optim as optim
 import numpy as np
 
 
@@ -29,3 +30,12 @@ class Rescaler:
 def mkdir(path):
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def make_scheduler(optimizer, lr, min_lr, epochs, steps=10):
+    if min_lr < 0:
+        return None
+    step_size = epochs // steps
+    gamma = (min_lr / lr)**(1 / steps)
+    return optim.lr_scheduler.StepLR(
+        optimizer, step_size=step_size, gamma=gamma)

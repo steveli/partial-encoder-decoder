@@ -13,7 +13,7 @@ from masked_celeba import BlockMaskedCelebA, IndepMaskedCelebA
 from celeba_decoder import ConvDecoder
 from celeba_encoder import ConvEncoder, conv_ln_lrelu
 from mmd import mmd
-from utils import mkdir
+from utils import mkdir, make_scheduler
 from visualize import Visualizer
 
 
@@ -167,13 +167,7 @@ def train_pbigan(args):
 
     grad_penalty = GradientPenalty(critic, args.batch_size)
 
-    scheduler = None
-    if args.min_lr is not None:
-        lr_steps = 10
-        step_size = args.epoch // lr_steps
-        gamma = (args.min_lr / args.lr)**(1 / lr_steps)
-        scheduler = optim.lr_scheduler.StepLR(
-            optimizer, step_size=step_size, gamma=gamma)
+    scheduler = make_scheduler(optimizer, args.lr, args.min_lr, args.epoch)
 
     path = '{}_{}_{}'.format(
         args.prefix, datetime.now().strftime('%m%d.%H%M%S'), mask_str)
@@ -203,7 +197,7 @@ def train_pbigan(args):
     for epoch in range(args.epoch):
         loss_breakdown = defaultdict(float)
 
-        if epoch >= args.aeoff:
+        if epoch >= args.ae_start:
             ae_weight = args.ae
 
         for (x, mask, _), (_, mask_gen, _) in zip(data_loader, mask_loader):
@@ -294,31 +288,49 @@ def train_pbigan(args):
 def main():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--seed', type=int, default=3)
+    parser.add_argument('--seed', type=int, default=3,
+                        help='random seed')
     # training options
-    parser.add_argument('--plot-interval', type=int, default=10)
-    parser.add_argument('--save-interval', type=int, default=0)
-    # mask options (data): block|indep
-    parser.add_argument('--mask', default='block')
+    parser.add_argument('--plot-interval', type=int, default=10,
+                        help='plot interval. 0 to disable plotting.')
+    parser.add_argument('--save-interval', type=int, default=0,
+                        help='interval to save models. 0 to disable saving.')
+    parser.add_argument('--mask', default='block',
+                        help='missing data mask. (options: block, indep)')
     # option for block: set to 0 for variable size
-    parser.add_argument('--block-len', type=int, default=32)
+    parser.add_argument('--block-len', type=int, default=32,
+                        help='size of observed block. '
+                             'Set to 0 to use variable size')
     # option for indep:
-    parser.add_argument('--obs-prob', type=float, default=.2)
+    parser.add_argument('--obs-prob', type=float, default=.2,
+                        help='observed probability for independent dropout')
 
-    parser.add_argument('--flow', type=int, default=2)
-    parser.add_argument('--lr', type=float, default=2e-4)
-    parser.add_argument('--min-lr', type=float, default=5e-5)
+    parser.add_argument('--flow', type=int, default=2,
+                        help='number of IAF layers')
+    parser.add_argument('--lr', type=float, default=2e-4,
+                        help='learning rate')
+    parser.add_argument('--min-lr', type=float, default=5e-5,
+                        help='min learning rate for LR scheduler. '
+                             '-1 to disable annealing')
 
-    parser.add_argument('--epoch', type=int, default=500)
-    parser.add_argument('--batch-size', type=int, default=256)
-    parser.add_argument('--ae', type=float, default=.002)
-    parser.add_argument('--aeoff', type=int, default=0)   # prev: 30
-    parser.add_argument('--prefix', default='pbigan')
-    parser.add_argument('--latent', type=int, default=128)
-    # aeloss options: mse | bce | smooth_l1 | l1
-    parser.add_argument('--aeloss', default='smooth_l1')
+    parser.add_argument('--epoch', type=int, default=500,
+                        help='number of training epochs')
+    parser.add_argument('--batch-size', type=int, default=256,
+                        help='batch size')
+    parser.add_argument('--ae', type=float, default=.002,
+                        help='autoencoding regularization strength')
+    parser.add_argument('--ae-start', type=int, default=0,
+                        help='start epoch of autoencoding regularization')
+    parser.add_argument('--prefix', default='pbigan',
+                        help='prefix of output directory')
+    parser.add_argument('--latent', type=int, default=128,
+                        help='dimension of latent variable')
+    parser.add_argument('--aeloss', default='smooth_l1',
+                        help='autoencoding loss. '
+                             '(options: mse, bce, smooth_l1, l1)')
     # --mmd 0 to disable mmd regularization
-    parser.add_argument('--mmd', type=float, default=0)
+    parser.add_argument('--mmd', type=float, default=0,
+                        help='MMD strength for latent variable')
 
     args = parser.parse_args()
 

@@ -35,8 +35,8 @@ python mnist_pbigan.py
 ### CelebA
 
 For CelebA, you need to download the dataset from its
-[website](http://mmlab.ie.cuhk.edu.hk/projects/CelebA.html)
-by doing either of the following:
+[website](http://mmlab.ie.cuhk.edu.hk/projects/CelebA.html).
+Specifically, you may either:
 * Download the file `img_align_celeba.zip` from [this link](https://drive.google.com/uc?export=download&id=0B7EVK8r0v71pZjFTYXZWM3FlRnM)
   and extract the zip file into the directory `image/celeba-data`, or
 * Run the script [download-celeba.sh](image/celeba-data/download-celeba.sh)
@@ -84,7 +84,7 @@ of size `(N, C, L)`:
   Note that for those missing entries, whose corresponding
   `mask` entry is zero, they must be set to values within [0, 1]
   for the decoder to work correctly.
-  The easiest way is to set those to 0 by `time *= mask`.
+  The easiest way is to set those to zero by `time *= mask`.
 * `data` stores the corresponding time series values associated with `time`.
   For those missing entries, they may contain arbitrary values.
 
@@ -121,7 +121,7 @@ one of the following three labeled time series data format:
 1. Unsplit format with an additional label vector with the following 4 fields.
    The data will be randomly split into train/test/validation set.
     * `(time|data|mask)`: numpy array of shape `(N, C, L)` as described before.
-    * `y`: binary label of shape `(N,)`.
+    * `label`: binary label of shape `(N,)`.
 2. Data come with train/test split with the following 8 fields.
    The training set will be
    subsequently split into a smaller training set (80%)

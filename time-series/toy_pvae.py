@@ -15,12 +15,9 @@ from time_series import TimeSeries
 from tracker import Tracker
 from vis import Visualizer
 from gen_toy_data import gen_data
-from utils import Rescaler, mkdir
+from utils import Rescaler, mkdir, make_scheduler
 from layers import Decoder
-from toy_layers import (
-    SeqGeneratorDiscrete,
-    conv_ln_lrelu,
-)
+from toy_layers import SeqGeneratorDiscrete, conv_ln_lrelu
 
 
 use_cuda = torch.cuda.is_available()
@@ -78,33 +75,47 @@ def main():
     parser = argparse.ArgumentParser()
 
     default_dataset = 'toy-data.npz'
-    parser.add_argument('--data', default=default_dataset)
-    parser.add_argument('--seed', type=int, default=None)
+    parser.add_argument('--data', default=default_dataset,
+                        help='data file')
+    parser.add_argument('--seed', type=int, default=None,
+                        help='random seed. Randomly set if not specified.')
 
     # training options
-    parser.add_argument('--nz', type=int, default=32)
-    parser.add_argument('--epoch', type=int, default=1000)
-    parser.add_argument('--batch-size', type=int, default=64)
-    # parser.add_argument('--lr', type=float, default=1e-3)
-    parser.add_argument('--lr', type=float, default=1e-4)
-    parser.add_argument('--min-lr', type=float, default=None)
-
-    # log options: 0 to disable plot-interval or save-interval
-    parser.add_argument('--plot-interval', type=int, default=10)
-    parser.add_argument('--save-interval', type=int, default=0)
-    parser.add_argument('--prefix', default='pvae')
-    parser.add_argument('--comp', type=int, default=5)
-    parser.add_argument('--sigma', type=float, default=.2)
-    parser.add_argument('--overlap', type=float, default=.5)   # kernel overlap
+    parser.add_argument('--nz', type=int, default=32,
+                        help='dimension of latent variable')
+    parser.add_argument('--epoch', type=int, default=1000,
+                        help='number of training epochs')
+    parser.add_argument('--batch-size', type=int, default=128,
+                        help='batch size')
+    parser.add_argument('--lr', type=float, default=1e-4,
+                        help='learning rate')
+    parser.add_argument('--min-lr', type=float, default=-1,
+                        help='min learning rate for LR scheduler. '
+                             '-1 to disable annealing')
+    parser.add_argument('--plot-interval', type=int, default=10,
+                        help='plot interval. 0 to disable plotting.')
+    parser.add_argument('--save-interval', type=int, default=0,
+                        help='interval to save models. 0 to disable saving.')
+    parser.add_argument('--prefix', default='pvae',
+                        help='prefix of output directory')
+    parser.add_argument('--comp', type=int, default=5,
+                        help='continuous convolution kernel size')
+    parser.add_argument('--sigma', type=float, default=.2,
+                        help='standard deviation for Gaussian likelihood')
+    parser.add_argument('--overlap', type=float, default=.5,
+                        help='kernel overlap')
     # squash is off when rescale is off
     parser.add_argument('--squash', dest='squash', action='store_const',
-                        const=True, default=True)
+                        const=True, default=True,
+                        help='bound the generated time series value '
+                             'using tanh')
     parser.add_argument('--no-squash', dest='squash', action='store_const',
                         const=False)
 
     # rescale to [-1, 1]
     parser.add_argument('--rescale', dest='rescale', action='store_const',
-                        const=True, default=True)
+                        const=True, default=True,
+                        help='if set, rescale time to [-1, 1]')
     parser.add_argument('--no-rescale', dest='rescale', action='store_const',
                         const=False)
 
@@ -184,13 +195,7 @@ def main():
 
     optimizer = optim.Adam(pvae.parameters(), lr=args.lr)
 
-    scheduler = None
-    if args.min_lr is not None:
-        lr_steps = 10
-        step_size = epochs // lr_steps
-        gamma = (args.min_lr / args.lr)**(1 / lr_steps)
-        scheduler = optim.lr_scheduler.StepLR(
-            optimizer, step_size=step_size, gamma=gamma)
+    scheduler = make_scheduler(optimizer, args.lr, args.min_lr, epochs)
 
     path = '{}_{}_{}'.format(
         args.prefix, datetime.now().strftime('%m%d.%H%M%S'),
@@ -212,7 +217,7 @@ def main():
             print(f'{key}: {val}', file=f)
 
     tracker = Tracker(log_dir, n_train_batch)
-    visualizer = Visualizer(encoder, decoder, batch_size, max_time,
+    visualizer = Visualizer(encoder, decoder, test_batch_size, max_time,
                             test_loader, rescaler, output_dir, device)
     start = time.time()
     epoch_start = start

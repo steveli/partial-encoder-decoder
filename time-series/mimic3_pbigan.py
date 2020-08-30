@@ -14,7 +14,7 @@ from collections import defaultdict
 from spline_cconv import ContinuousConv1D
 import time_series
 from ema import EMA
-from utils import count_parameters, mkdir
+from utils import count_parameters, mkdir, make_scheduler
 from mmd import mmd
 from tracker import Tracker
 from evaluate import Evaluator
@@ -127,58 +127,92 @@ class PBiGAN(nn.Module):
 def main():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--data', default='mimic3-rescaled.npz')
-    parser.add_argument('--seed', type=int, default=None)
+    parser.add_argument('--data', default='mimic3.npz',
+                        help='data file')
+    parser.add_argument('--seed', type=int, default=None,
+                        help='random seed. Randomly set if not specified.')
 
     # training options
-    parser.add_argument('--nz', type=int, default=32)
-    parser.add_argument('--epoch', type=int, default=500)
-    parser.add_argument('--batch-size', type=int, default=64)
+    parser.add_argument('--nz', type=int, default=32,
+                        help='dimension of latent variable')
+    parser.add_argument('--epoch', type=int, default=500,
+                        help='number of training epochs')
+    parser.add_argument('--batch-size', type=int, default=64,
+                        help='batch size')
     # Use smaller test batch size to accommodate more importance samples
-    parser.add_argument('--test-batch-size', type=int, default=32)
-    parser.add_argument('--lr', type=float, default=2e-4)
-    parser.add_argument('--dis-lr', type=float, default=3e-4)
-    parser.add_argument('--min-lr', type=float, default=1e-4)
-    parser.add_argument('--min-dis-lr', type=float, default=1.5e-4)
-    parser.add_argument('--wd', type=float, default=1e-4)   # weight decay
-    parser.add_argument('--overlap', type=float, default=.5)   # kernel overlap
-    parser.add_argument('--cls', type=float, default=1)
-    parser.add_argument('--clsdep', type=int, default=1)
-
-    # log options: 0 to disable plot-interval or save-interval
-    parser.add_argument('--plot-interval', type=int, default=1)
-    parser.add_argument('--save-interval', type=int, default=0)
-    parser.add_argument('--prefix', default='pbigan')
-    parser.add_argument('--comp', type=int, default=7)
-    parser.add_argument('--ae', type=float, default=1)
-    parser.add_argument('--aeloss', default='mse')   # mse | smooth_l1
-    parser.add_argument('--dec-ch', default='8-16-16')
-    parser.add_argument('--enc-ch', default='64-32-32-16')
-    parser.add_argument('--dis-ch', default=None)
-    # rescale to [-1, 1]
+    parser.add_argument('--test-batch-size', type=int, default=32,
+                        help='batch size for validation and test set')
+    parser.add_argument('--lr', type=float, default=2e-4,
+                        help='encoder/decoder learning rate')
+    parser.add_argument('--dis-lr', type=float, default=3e-4,
+                        help='discriminator learning rate')
+    parser.add_argument('--min-lr', type=float, default=1e-4,
+                        help='min encoder/decoder learning rate for LR '
+                             'scheduler. -1 to disable annealing')
+    parser.add_argument('--min-dis-lr', type=float, default=1.5e-4,
+                        help='min discriminator learning rate for LR '
+                             'scheduler. -1 to disable annealing')
+    parser.add_argument('--wd', type=float, default=1e-4,
+                        help='weight decay')
+    parser.add_argument('--overlap', type=float, default=.5,
+                        help='kernel overlap')
+    parser.add_argument('--cls', type=float, default=1,
+                        help='classification weight')
+    parser.add_argument('--clsdep', type=int, default=1,
+                        help='number of layers for classifier')
+    parser.add_argument('--eval-interval', type=int, default=1,
+                        help='AUC evaluation interval. '
+                             '0 to disable evaluation.')
+    parser.add_argument('--save-interval', type=int, default=0,
+                        help='interval to save models. 0 to disable saving.')
+    parser.add_argument('--prefix', default='pbigan',
+                        help='prefix of output directory')
+    parser.add_argument('--comp', type=int, default=7,
+                        help='continuous convolution kernel size')
+    parser.add_argument('--ae', type=float, default=1,
+                        help='autoencoding regularization strength')
+    parser.add_argument('--aeloss', default='mse',
+                        help='autoencoding loss. (options: mse, smooth_l1)')
+    parser.add_argument('--dec-ch', default='8-16-16',
+                        help='decoder architecture')
+    parser.add_argument('--enc-ch', default='64-32-32-16',
+                        help='encoder architecture')
+    parser.add_argument('--dis-ch', default=None,
+                        help='discriminator architecture. Use encoder '
+                             'architecture if unspecified.')
     parser.add_argument('--rescale', dest='rescale', action='store_const',
-                        const=True, default=True)
+                        const=True, default=True,
+                        help='if set, rescale time to [-1, 1]')
     parser.add_argument('--no-rescale', dest='rescale', action='store_const',
                         const=False)
     parser.add_argument('--cconvnorm', dest='cconv_norm',
-                        action='store_const', const=True, default=True)
+                        action='store_const', const=True, default=True,
+                        help='if set, normalize continuous convolutional '
+                             'layer using mean pooling')
     parser.add_argument('--no-cconvnorm', dest='cconv_norm',
                         action='store_const', const=False)
-    parser.add_argument('--cconv-ref', type=int, default=98)
-    parser.add_argument('--dec-ref', type=int, default=128)
-    parser.add_argument('--trans', type=int, default=2)
-
-    # ema: -1 to disable EMA, otherwise ema specifies the start_iter of EMA
-    parser.add_argument('--ema', dest='ema', type=int, default=0)
-    parser.add_argument('--ema-decay', type=float, default=.9999)
-    parser.add_argument('--mmd', type=float, default=1)
+    parser.add_argument('--cconv-ref', type=int, default=98,
+                        help='number of evenly-spaced reference locations '
+                             'for continuous convolutional layer')
+    parser.add_argument('--dec-ref', type=int, default=128,
+                        help='number of evenly-spaced reference locations '
+                             'for decoder')
+    parser.add_argument('--trans', type=int, default=2,
+                        help='number of encoder layers')
+    parser.add_argument('--ema', dest='ema', type=int, default=0,
+                        help='start epoch of exponential moving average '
+                             '(EMA). -1 to disable EMA')
+    parser.add_argument('--ema-decay', type=float, default=.9999,
+                        help='EMA decay')
+    parser.add_argument('--mmd', type=float, default=1,
+                        help='MMD strength for latent variable')
 
     args = parser.parse_args()
 
     nz = args.nz
 
     epochs = args.epoch
-    plot_interval = args.plot_interval
+    eval_interval = args.eval_interval
     save_interval = args.save_interval
 
     if args.seed is None:
@@ -264,21 +298,9 @@ def main():
         critic.parameters(), lr=args.dis_lr,
         betas=(0, .999), weight_decay=args.wd)
 
-    scheduler = None
-    if args.min_lr is not None:
-        lr_steps = 10
-        step_size = epochs // lr_steps
-        gamma = (args.min_lr / args.lr)**(1 / lr_steps)
-        scheduler = optim.lr_scheduler.StepLR(
-            optimizer, step_size=step_size, gamma=gamma)
-
-    dis_scheduler = None
-    if args.min_dis_lr is not None:
-        lr_steps = 10
-        step_size = epochs // lr_steps
-        gamma = (args.min_dis_lr / args.dis_lr)**(1 / lr_steps)
-        dis_scheduler = optim.lr_scheduler.StepLR(
-            critic_optimizer, step_size=step_size, gamma=gamma)
+    scheduler = make_scheduler(optimizer, args.lr, args.min_lr, epochs)
+    dis_scheduler = make_scheduler(
+        critic_optimizer, args.dis_lr, args.min_dis_lr, epochs)
 
     path = '{}_{}'.format(
         args.prefix, datetime.now().strftime('%m%d.%H%M%S'))
@@ -387,7 +409,7 @@ def main():
         tracker.log(
             epoch, loss_breakdown, cur_time - epoch_start, cur_time - start)
 
-        if plot_interval > 0 and (epoch + 1) % plot_interval == 0:
+        if eval_interval > 0 and (epoch + 1) % eval_interval == 0:
             if ema:
                 ema.apply()
                 evaluator.evaluate(epoch)
