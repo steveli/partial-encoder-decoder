@@ -97,7 +97,7 @@ of creating a synthetic time series dataset in such format.
 
 [This notebook](https://nbviewer.jupyter.org/github/steveli/partial-encoder-decoder/blob/master/time-series/toy_time_series.ipynb)
 provides an overview of P-VAE and P-BiGAN
-and demonstrates how to them on a synthetic dataset.
+and demonstrates how to train them on a synthetic dataset.
 
 <img src="examples/time-series.png" alt="time series imputation" width="600" />
 
