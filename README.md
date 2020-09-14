@@ -58,9 +58,10 @@ python celeba_pbigan.py
 
 ### Command-line options
 
-For both MNIST and CelebA scripts, use the option
-`--mask block --block-len n` to specify the mask to be n by n blocks.
-`--mask indep --obs-prob .2` to specify the mask to be independent dropout
+For both MNIST and CelebA scripts, using the option
+`--mask block --block-len n` to specify "square observation" missingness
+with n-by-n observed blocks and
+`--mask indep --obs-prob .2` to specify "independent dropout" missingness
 with 80% missing pixels.
 
 Use `-h` to see all the available command-line options for each script
@@ -93,6 +94,10 @@ The script [gen_toy_data.py](time-series/gen_toy_data.py) is an example
 of creating a synthetic time series dataset in such format.
 
 ### Synthetic data
+
+[This notebook](https://nbviewer.jupyter.org/github/steveli/partial-encoder-decoder/blob/master/time-series/toy_time_series.ipynb)
+provides an overview of P-VAE and P-BiGAN
+and demonstrates how to them on a synthetic dataset.
 
 <img src="examples/time-series.png" alt="time series imputation" width="600" />
 

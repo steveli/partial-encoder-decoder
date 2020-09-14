@@ -38,12 +38,13 @@ def gen_data(n_samples=10000, seq_len=200, max_time=1, poisson_rate=50,
         save_file:
             File name that the generated data is saved to.
     """
+    n_channels = 3
     time_unif = np.linspace(0, max_time, seq_len)
-    time_unif_3ch = np.broadcast_to(time_unif, (3, seq_len))
-    data_unif = np.empty((n_samples, 3, seq_len))
+    time_unif_3ch = np.broadcast_to(time_unif, (n_channels, seq_len))
+    data_unif = np.empty((n_samples, n_channels, seq_len))
     sparse_data, sparse_time, sparse_mask = [
-        np.empty((n_samples, 3, seq_len)) for _ in range(3)]
-    tpp = HomogeneousPoissonProcess(rate=30)
+        np.empty((n_samples, n_channels, seq_len)) for _ in range(3)]
+    tpp = HomogeneousPoissonProcess(rate=poisson_rate)
 
     def gen_time_series(offset1, offset2, t):
         t1 = t[0] + offset1

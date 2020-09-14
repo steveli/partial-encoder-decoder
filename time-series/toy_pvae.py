@@ -89,7 +89,7 @@ def main():
                         help='batch size')
     parser.add_argument('--lr', type=float, default=1e-4,
                         help='learning rate')
-    parser.add_argument('--min-lr', type=float, default=-1,
+    parser.add_argument('--min-lr', type=float, default=5e-5,
                         help='min learning rate for LR scheduler. '
                              '-1 to disable annealing')
     parser.add_argument('--plot-interval', type=int, default=10,
@@ -190,8 +190,7 @@ def main():
 
     encoder = Encoder(nz, cconv).to(device)
 
-    pvae = PVAE(
-        encoder, decoder, sigma=args.sigma).to(device)
+    pvae = PVAE(encoder, decoder, sigma=args.sigma).to(device)
 
     optimizer = optim.Adam(pvae.parameters(), lr=args.lr)
 

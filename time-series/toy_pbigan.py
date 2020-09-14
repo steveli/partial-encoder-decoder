@@ -187,7 +187,7 @@ def main():
                         help='prefix of output directory')
     parser.add_argument('--comp', type=int, default=7,
                         help='continuous convolution kernel size')
-    parser.add_argument('--ae', type=float, default=.3,
+    parser.add_argument('--ae', type=float, default=.2,
                         help='autoencoding regularization strength')
     parser.add_argument('--aeloss', default='smooth_l1',
                         help='autoencoding loss. (options: mse, smooth_l1)')
